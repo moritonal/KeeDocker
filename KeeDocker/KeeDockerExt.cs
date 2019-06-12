@@ -1,6 +1,5 @@
 ﻿using ICSharpCode.SharpZipLib.Tar;
 using KeePass;
-using KeePass.Forms;
 using KeePass.Plugins;
 using KeePass.Resources;
 using KeePass.Util;
@@ -9,78 +8,42 @@ using KeePassLib;
 using KeePassLib.Utility;
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace KeeDocker
 {
     public sealed class KeeDockerExt : Plugin
     {
-        private IPluginHost Host { get; set; } = null;
-
-        private static void StartWithoutShellExecute(string strApp, string strArgs)
+        internal static string CompileUrl(string url, PwEntry entry, string baseUrl)
         {
+            PwDatabase database = null;
+
             try
             {
-                ProcessStartInfo psi = new ProcessStartInfo();
-                psi.FileName = strApp;
-                if (!string.IsNullOrEmpty(strArgs)) psi.Arguments = strArgs;
-                psi.UseShellExecute = false;
+                var mf = Program.MainForm;
 
-                Process p = Process.Start(psi);
-                if (p != null) p.Dispose();
+                if (mf != null)
+                {
+                    database = mf.DocumentManager.SafeFindContainerOf(entry);
+                }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                string strMsg = KPRes.FileOrUrl + ": " + strApp;
-                if (!string.IsNullOrEmpty(strArgs))
-                    strMsg += MessageService.NewParagraph +
-                        KPRes.Arguments + ": " + strArgs;
-
-                MessageService.ShowWarning(strMsg, ex);
+                Debug.Assert(false);
             }
-        }
 
-        internal static string CompileUrl(string strUrlToOpen, PwEntry pe,
-            bool bAllowOverride, string strBaseRaw, bool? obForceEncCmd)
-        {
-            MainForm mf = Program.MainForm;
-            PwDatabase pd = null;
-            try { if (mf != null) pd = mf.DocumentManager.SafeFindContainerOf(pe); }
-            catch (Exception) { Debug.Assert(false); }
+            url = url.TrimStart(new char[] { ' ', '\t', '\r', '\n' });
 
-            string strUrlFlt = strUrlToOpen;
-            strUrlFlt = strUrlFlt.TrimStart(new char[] { ' ', '\t', '\r', '\n' });
+            bool bEncodeAsAutoTypeSequence = WinUtil.IsCommandLineUrl(url);
 
-            bool bEncCmd = (obForceEncCmd.HasValue ? obForceEncCmd.Value :
-                WinUtil.IsCommandLineUrl(strUrlFlt));
-
-            SprContext ctx = new SprContext(pe, pd, SprCompileFlags.All, false, bEncCmd);
-            ctx.Base = strBaseRaw;
-            ctx.BaseIsEncoded = false;
-
-            string strUrl = SprEngine.Compile(strUrlFlt, ctx);
-
-            string strOvr = Program.Config.Integration.UrlSchemeOverrides.GetOverrideForUrl(
-                strUrl);
-            if (!bAllowOverride) strOvr = null;
-            if (strOvr != null)
+            var context = new SprContext(entry, database, SprCompileFlags.All, false, bEncodeAsAutoTypeSequence)
             {
-                bool bEncCmdOvr = WinUtil.IsCommandLineUrl(strOvr);
+                Base = baseUrl,
+                BaseIsEncoded = false
+            };
 
-                SprContext ctxOvr = new SprContext(pe, pd, SprCompileFlags.All,
-                    false, bEncCmdOvr);
-                ctxOvr.Base = strUrl;
-                ctxOvr.BaseIsEncoded = bEncCmd;
-
-                strUrl = SprEngine.Compile(strOvr, ctxOvr);
-            }
-
-            return strUrl;
+            return SprEngine.Compile(url, context);
         }
 
         public override bool Initialize(IPluginHost host)
@@ -88,17 +51,13 @@ namespace KeeDocker
             if (host == null)
                 return false;
 
-            Host = host;
-
             WinUtil.OpenUrlPre += (a, b) =>
             {
                 var uri = new Uri(b.Url);
 
                 if (uri.Scheme == "docker")
                 {
-                    Process p = null;
-
-                    string strUrl = CompileUrl(b.Url, b.Entry, false, b.BaseRaw, null);
+                    string strUrl = CompileUrl(b.Url, b.Entry, b.BaseRaw);
 
                     var commandLine = strUrl.Replace("docker://", "");
 
@@ -107,7 +66,7 @@ namespace KeeDocker
                     var createContainerProcess = Process.Start(new ProcessStartInfo
                     {
                         FileName = "docker",
-                        Arguments = $"create -it --rm {commandLine}",//ssh-over-tor",
+                        Arguments = $"create -it --rm {commandLine}",
                         UseShellExecute = false,
                         RedirectStandardOutput = true,
                         CreateNoWindow = true
@@ -168,17 +127,16 @@ namespace KeeDocker
 
                     try
                     {
-                        p = Process.Start("docker", $"start -a -i {containerID}");
+                        var dockerProcess = Process.Start("docker", $"start -a -i {containerID}");
                     }
                     catch (Exception exCmd)
                     {
-
                         string strMsg = KPRes.FileOrUrl + ": " + "docker";
 
                         MessageService.ShowWarning(strMsg, exCmd);
                     }
 
-                    // Cause the following
+                    // This causes the url not to be lauched via Windows
                     b.Url = "";
                 }
             };
