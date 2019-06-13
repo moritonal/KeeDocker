@@ -21,12 +21,7 @@ namespace KeeDocker
 
             try
             {
-                var mf = Program.MainForm;
-
-                if (mf != null)
-                {
-                    database = mf.DocumentManager.SafeFindContainerOf(entry);
-                }
+                database = Program.MainForm.DocumentManager.SafeFindContainerOf(entry);
             }
             catch (Exception)
             {
@@ -66,7 +61,7 @@ namespace KeeDocker
                     var createContainerProcess = Process.Start(new ProcessStartInfo
                     {
                         FileName = "docker",
-                        Arguments = $"create -it --rm {commandLine}",
+                        Arguments = "create -it --rm " + commandLine,
                         UseShellExecute = false,
                         RedirectStandardOutput = true,
                         CreateNoWindow = true
@@ -106,7 +101,7 @@ namespace KeeDocker
                                 StartInfo = new ProcessStartInfo
                                 {
                                     FileName = "docker",
-                                    Arguments = $"cp - {containerID}:/tmp",
+                                    Arguments = "cp - " + containerID + ":/tmp",
                                     UseShellExecute = false,
                                     RedirectStandardOutput = true,
                                     RedirectStandardInput = true,
@@ -127,7 +122,7 @@ namespace KeeDocker
 
                     try
                     {
-                        var dockerProcess = Process.Start("docker", $"start -a -i {containerID}");
+                        var dockerProcess = Process.Start("docker", "start -a -i " + containerID);
                     }
                     catch (Exception exCmd)
                     {
