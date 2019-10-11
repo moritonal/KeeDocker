@@ -9,3 +9,8 @@ When the URL is double-clicked, the plugin will intercept the process call and p
 * Create a docker container with the command `docker create -it --rm` plus anything after `docker://`.
 * Copy all the attachments to the KeePass entry directly via an stdin pipeline into the container at `/tmp`.
 * Start the container and attach a terminal.
+
+
+## Building
+
+& "C:\Users\User\Google Drive\Memory\KeePass\KeePass.exe" --plgx-create "C:\Users\User\source\repos\KeeDocker\KeeDocker"
