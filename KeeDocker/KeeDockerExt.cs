@@ -10,11 +10,18 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 
 namespace KeeDocker
 {
     public sealed class KeeDockerExt : Plugin
     {
+        public override string UpdateUrl {
+            get {
+                return "https://raw.githubusercontent.com/moritonal/KeeDocker/master/Version.txt";
+            }
+        }
+
         internal static string CompileUrl(string url, PwEntry entry, string baseUrl)
         {
             PwDatabase database = null;
@@ -41,6 +48,22 @@ namespace KeeDocker
             return SprEngine.Compile(url, context);
         }
 
+        public bool IsDockerRunning()
+        {
+            var dockerRunning = Process.Start(new ProcessStartInfo
+            {
+                FileName = "docker",
+                Arguments = "info",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                CreateNoWindow = true
+            });
+
+            dockerRunning.WaitForExit();
+
+            return dockerRunning.ExitCode == 0;
+        }
+
         public override bool Initialize(IPluginHost host)
         {
             if (host == null)
@@ -48,10 +71,16 @@ namespace KeeDocker
 
             WinUtil.OpenUrlPre += (a, b) =>
             {
-                var uri = new Uri(b.Url);
+                var uri = new Uri(b.Url.Split(' ').FirstOrDefault());
 
                 if (uri.Scheme == "docker")
                 {
+                    if (!IsDockerRunning())
+                    {
+                        System.Windows.Forms.MessageBox.Show("Docker is not running?");
+                        return;
+                    }
+
                     string strUrl = CompileUrl(b.Url, b.Entry, b.BaseRaw);
 
                     var commandLine = strUrl.Replace("docker://", "");
@@ -66,6 +95,7 @@ namespace KeeDocker
                         RedirectStandardOutput = true,
                         CreateNoWindow = true
                     });
+
                     createContainerProcess.WaitForExit();
                     var containerID = createContainerProcess.StandardOutput.ReadToEnd().Trim();
 
@@ -131,7 +161,7 @@ namespace KeeDocker
                         MessageService.ShowWarning(strMsg, exCmd);
                     }
 
-                    // This causes the url not to be lauched via Windows
+                    // This causes the url not to be launched via Windows
                     b.Url = "";
                 }
             };
